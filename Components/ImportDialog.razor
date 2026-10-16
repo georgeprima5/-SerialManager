@@ -1,0 +1,120 @@
+@inject SerialRepository Repository
+@inject SettingsRepository Settings
+
+@* 批次匯入視窗。點外面不會關閉，避免貼好的資料不小心消失 *@
+<div class="dialog-backdrop">
+    <div class="dialog card dialog-wide">
+        @* 標題列固定在上方，右上角 ✕ 隨時都能關閉 *@
+        <div class="dialog-header">
+            <div class="dialog-title">批次匯入</div>
+            <button type="button" class="dialog-close icon" @onclick="Close">&#xE8BB;</button>
+        </div>
+
+        @if (result is null)
+        {
+            <label class="field">
+                <span>貼上文字</span>
+                <textarea class="input import-text" rows="10" @ref="textArea"
+                          @bind="text" @bind:event="oninput"></textarea>
+            </label>
+            <label class="field">
+                <span>效期</span>
+                <DateInput @bind-Value="expiresOn" @bind-Value:after="() => showExpiresError = false" Invalid="showExpiresError" />
+                @if (showExpiresError)
+                {
+                    <span class="field-error">請選擇效期</span>
+                }
+            </label>
+            <div class="dialog-actions">
+                <button type="button" class="button" @onclick="Close">取消</button>
+                <button type="button" class="button primary" disabled="@string.IsNullOrWhiteSpace(text)" @onclick="Import">匯入</button>
+            </div>
+        }
+        else
+        {
+            <div class="import-summary">
+                新增 @result.Added 筆，略過 @result.Duplicates.Count 筆重複，格式錯誤 @errors.Count 筆
+            </div>
+
+            @* 錯誤或重複很多時，只有這一區捲動，標題列和「關閉」按鈕固定不動 *@
+            <div class="dialog-scroll">
+                @if (errors.Count > 0)
+                {
+                    <div class="import-section">
+                        <div class="import-section-title">格式錯誤</div>
+                        @foreach (var error in errors)
+                        {
+                            <div class="import-line">
+                                <span>第 @error.RecordNumber 筆：@error.Reason</span>
+                                <span class="import-raw">@error.RawText</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (result.Duplicates.Count > 0)
+                {
+                    <div class="import-section">
+                        <div class="import-section-title">略過的重複序號</div>
+                        <div class="import-codes">
+                            @foreach (var duplicate in result.Duplicates)
+                            {
+                                <span class="code">@duplicate</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="dialog-actions">
+                <button type="button" class="button primary" @onclick="Close">關閉</button>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>視窗關閉時通知列表頁重新整理。</summary>
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    private string text = "";
+    private DateTime? expiresOn;
+    private bool showExpiresError;
+    private ElementReference textArea;
+
+    private ImportResult? result;
+    private List<ImportError> errors = new();
+
+    protected override void OnInitialized()
+    {
+        // 效期帶入上一次填的日期（與手動新增共用）
+        if (DateTime.TryParse(Settings.Get(SettingsRepository.LastExpiresOnKey), out var last))
+        {
+            expiresOn = last;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await textArea.FocusAsync();   // 打開就可以直接 Ctrl+V
+        }
+    }
+
+    private void Import()
+    {
+        if (expiresOn is null)
+        {
+            showExpiresError = true;
+            return;
+        }
+
+        var parsed = SerialImportParser.Parse(text, DateTime.Now);
+        result = Repository.Import(parsed.Rows, expiresOn.Value);
+        errors = parsed.Errors;
+        Settings.Set(SettingsRepository.LastExpiresOnKey, expiresOn.Value.ToString("yyyy-MM-dd"));
+    }
+
+    private Task Close() => OnClosed.InvokeAsync();
+}

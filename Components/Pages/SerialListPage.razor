@@ -1,0 +1,861 @@
+@inject SerialRepository Repository
+@inject SettingsRepository Settings
+@inject WindowService Window
+@inject FeatureSettings Features
+
+@* ── 手動新增 ── *@
+<form class="card add-form" @onsubmit="AddSerial">
+    <label class="field">
+        <span>序號</span>
+        <input class="input @Invalid(FormField.Code)" @ref="codeInput"
+               @bind="newCode" @bind:event="oninput" @bind:after="() => ClearError(FormField.Code)" />
+        @if (errorField == FormField.Code)
+        {
+            <span class="field-error">@errorMessage</span>
+        }
+    </label>
+    <label class="field grow">
+        <span>內容</span>
+        <input class="input" @bind="newItemName" @bind:event="oninput" />
+    </label>
+    @if (Features.PrizeLevelVisible)
+    {
+        <label class="field narrow">
+            <span>獎項等級</span>
+            <input class="input" @bind="newPrizeLevel" @bind:event="oninput" />
+        </label>
+    }
+    <label class="field">
+        <span>效期</span>
+        <DateInput @bind-Value="newExpiresOn" @bind-Value:after="() => ClearError(FormField.ExpiresOn)"
+                   Invalid="errorField == FormField.ExpiresOn" />
+        @if (errorField == FormField.ExpiresOn)
+        {
+            <span class="field-error">@errorMessage</span>
+        }
+    </label>
+    <button type="submit" class="button primary">新增</button>
+    @if (Features.ImportEnabled)
+    {
+        <button type="button" class="button" @onclick="() => importOpen = true">批次匯入</button>
+    }
+</form>
+
+@* ── 搜尋與篩選 ── *@
+<div class="card filter-bar">
+    <label class="field grow">
+        <span>搜尋</span>
+        <input class="input" type="search" @bind="searchText" @bind:event="oninput" @bind:after="ClearSelection" />
+    </label>
+    <div class="field">
+        <span>狀態</span>
+        <div class="segmented">
+            @foreach (var (filter, label) in StatusFilters)
+            {
+                @* 關掉「送出功能」時，不顯示「已送出」這個篩選 *@
+                if (filter == StatusFilter.Given && !Features.GiveEnabled)
+                {
+                    continue;
+                }
+                <button type="button" class="@(statusFilter == filter ? "active" : "")" @onclick="() => SetStatusFilter(filter)">@label</button>
+            }
+        </div>
+    </div>
+    @if (Features.PrizeLevelVisible)
+    {
+        <label class="field">
+            <span>獎項等級</span>
+            <select class="select" @bind="prizeLevelFilter" @bind:after="ClearSelection">
+                <option value="">全部</option>
+                @foreach (var level in PrizeLevels)
+                {
+                    <option value="@level">@level</option>
+                }
+            </select>
+        </label>
+    }
+    <button type="button" class="button trash-button" @onclick="OnOpenTrash">
+        <span class="icon">&#xE74D;</span>
+        <span>垃圾桶</span>
+        @* 數量一直顯示（包含 0），按鈕寬度才不會忽大忽小 *@
+        <span class="count">@trashCount</span>
+    </button>
+</div>
+
+@* ── 勾選後的批次操作 ── *@
+@* 「狀態更新」選單展開時，點操作列以外的地方就收起來 *@
+@if (statusMenuOpen)
+{
+    <div class="menu-backdrop" @onclick="() => statusMenuOpen = false"></div>
+}
+<SelectionBar Count="selectedIds.Count">
+    @* 狀態更新：點了才在按鈕上方展開三種操作；點選單外面就收起來 *@
+    <div class="menu-anchor">
+        <button type="button" class="button" @onclick="() => statusMenuOpen = !statusMenuOpen">狀態更新<span class="icon menu-chevron">&#xE70E;</span></button>
+        @if (statusMenuOpen)
+        {
+            <div class="menu card">
+                <button type="button" disabled="@(!SelectedHasStatus(s => s != SerialStatus.Redeemed))" @onclick="RedeemSelected">已兌換</button>
+                @if (Features.GiveEnabled)
+                {
+                    <button type="button" disabled="@(!SelectedHasStatus(s => s == SerialStatus.Unredeemed))" @onclick="StartGiveSelected">送出</button>
+                }
+                <button type="button" disabled="@(!SelectedHasStatus(s => s != SerialStatus.Unredeemed))" @onclick="AskResetSelected">改回未兌換</button>
+            </div>
+        }
+    </div>
+    <button type="button" class="button" @onclick="StartChangeExpiry">更改效期</button>
+    @if (Features.ExportEnabled)
+    {
+        <button type="button" class="button" @onclick="ExportExcel">匯出 Excel</button>
+        <button type="button" class="button" @onclick="CopyAsText">複製文字</button>
+    }
+    <button type="button" class="button danger" @onclick="DeleteSelected">刪除</button>
+</SelectionBar>
+
+@* 操作完成的短暫提示（例如「已匯出 3 筆」），幾秒後自動消失 *@
+@if (toastMessage is not null)
+{
+    <div class="toast card">@toastMessage</div>
+}
+
+@* ── 序號列表 ── *@
+@{
+    var visibleItems = FilteredItems.ToList();
+}
+<div class="card table-card">
+    <table class="serial-table">
+        @* 內容、獎項等級、備註各保留一個比例的寬度，其他欄位依內容自動調整；管理頁關掉的欄位不顯示 *@
+        <colgroup>
+            <col /><col /><col />
+            <col class="w-content" />
+            @if (Features.PrizeLevelVisible) { <col class="w-level" /> }
+            @if (Features.AcquiredAtVisible) { <col /> }
+            <col /><col />
+            @if (Features.GiveEnabled) { <col /> }
+            @if (Features.NoteVisible) { <col class="w-note" /> }
+            <col />
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="col-check">
+                    <input type="checkbox" checked="@(visibleItems.Count > 0 && visibleItems.All(i => selectedIds.Contains(i.Id)))"
+                           @onchange="e => ToggleSelectAll(visibleItems, (bool)e.Value!)" />
+                </th>
+                <th class="col-check">已兌換</th>
+                <th>序號</th>
+                <th>內容</th>
+                @if (Features.PrizeLevelVisible) { <th>獎項等級</th> }
+                @if (Features.AcquiredAtVisible) { <th>取得時間</th> }
+                <th>效期</th>
+                <th>狀態</th>
+                @if (Features.GiveEnabled) { <th>送給誰</th> }
+                @if (Features.NoteVisible) { <th>備註</th> }
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in visibleItems)
+            {
+                var displayStatus = item.GetDisplayStatus(DateTime.Today);
+                var expiringSoon = item.IsExpiringSoon(DateTime.Today, expiringDays);
+                <tr class="@(selectedIds.Contains(item.Id) ? "selected" : "")">
+                    <td class="col-check">
+                        <input type="checkbox" checked="@selectedIds.Contains(item.Id)"
+                               @onchange="e => ToggleSelect(item.Id, (bool)e.Value!)" />
+                    </td>
+                    <td class="col-check">
+                        <input type="checkbox" checked="@(item.Status == SerialStatus.Redeemed)"
+                               @onchange="e => ToggleRedeemed(item, (bool)e.Value!)" />
+                    </td>
+                    @* 序號不縮窄（一般長度完整顯示）；class="shrink" 的欄位空間不夠時縮窄截斷，滑鼠停留顯示完整文字 *@
+                    <td>
+                        <div class="code-cell">
+                            <span class="code ellipsis" title="@item.Code">@item.Code</span>
+                            <button class="icon-button icon" @onclick="() => CopyCode(item)">@if (copiedId == item.Id) { <text>&#xE73E;</text> } else { <text>&#xE8C8;</text> }</button>
+                        </div>
+                    </td>
+                    <td class="shrink">
+                        <span class="ellipsis" title="@item.ItemName"><TruncatedText Text="@item.ItemName" Title="內容" Subtitle="@item.Code" /></span>
+                    </td>
+                    @if (Features.PrizeLevelVisible)
+                    {
+                        <td class="shrink"><span class="ellipsis" title="@item.PrizeLevel">@item.PrizeLevel</span></td>
+                    }
+                    @if (Features.AcquiredAtVisible)
+                    {
+                        <td class="can-wrap">@item.AcquiredAt?.ToString("yyyy/MM/dd HH:mm:ss")</td>
+                    }
+                    <td class="@ExpiresClass(displayStatus, expiringSoon)">@item.ExpiresOn.ToString("yyyy/MM/dd")</td>
+                    <td class="can-wrap">
+                        <span class="badge @displayStatus.ToString().ToLowerInvariant()">@StatusText(displayStatus)</span>
+                        @if (expiringSoon)
+                        {
+                            <span class="badge expiring">快到期</span>
+                        }
+                    </td>
+                    @if (Features.GiveEnabled)
+                    {
+                        <td>
+                            @* 送給誰：未兌換顯示「送出」；已送出顯示名字和「收回」；已兌換只顯示名字 *@
+                            <div class="row-actions can-wrap">
+                                @if (item.Status == SerialStatus.Unredeemed)
+                                {
+                                    <button class="button" @onclick="() => StartGive(item)">送出</button>
+                                }
+                                else
+                                {
+                                    <span class="ellipsis name" title="@item.GivenTo">@item.GivenTo</span>
+                                    @if (item.Status == SerialStatus.Given)
+                                    {
+                                        <button class="button small" @onclick="() => TakeBack(item)">收回</button>
+                                    }
+                                }
+                            </div>
+                        </td>
+                    }
+                    @if (Features.NoteVisible)
+                    {
+                        <td class="note-cell shrink" @onclick="() => StartEditNote(item)">
+                            @if (editingNoteId == item.Id)
+                            {
+                                <input class="input note-input" @ref="noteInput" @bind="noteText" @bind:event="oninput"
+                                       @onkeydown="OnNoteKeyDown" @onblur="SaveNote" @onclick:stopPropagation />
+                            }
+                            else
+                            {
+                                <span class="ellipsis" title="@item.Note">@item.Note</span>
+                            }
+                        </td>
+                    }
+                    <td class="col-actions">
+                        <button class="icon-button icon delete-button" @onclick="() => DeleteOne(item)">&#xE74D;</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@* ── 送出：彈出視窗 ── *@
+@if (givingItems is not null)
+{
+    <div class="dialog-backdrop" @onclick="CancelGive">
+        <form class="dialog card dialog-confirm" @onclick:stopPropagation @onsubmit="ConfirmGive">
+            <div class="dialog-title">送出</div>
+            <div class="dialog-subtitle">
+                @if (givingItems.Count == 1)
+                {
+                    <span class="code">@givingItems[0].Code</span>
+                    <span>@givingItems[0].ItemName</span>
+                }
+                else
+                {
+                    <span>@givingItems.Count 筆序號</span>
+                }
+            </div>
+            @if (givingSkipped > 0)
+            {
+                <div class="hint">另外 @givingSkipped 筆已兌換或已送出，不會變更</div>
+            }
+            <label class="field">
+                <span>送給誰</span>
+                <input class="input" @ref="giveInput" @bind="giveName" @bind:event="oninput" @onkeydown="OnGiveKeyDown" />
+            </label>
+            <div class="dialog-actions">
+                <button type="button" class="button" @onclick="CancelGive">取消</button>
+                <button type="submit" class="button primary" disabled="@string.IsNullOrWhiteSpace(giveName)">確定</button>
+            </div>
+        </form>
+    </div>
+}
+
+@* ── 更改效期：先選日期，再跳確認 ── *@
+@if (changingExpiry && !confirmingExpiry)
+{
+    <div class="dialog-backdrop" @onclick="CancelChangeExpiry">
+        <form class="dialog card dialog-confirm" @onclick:stopPropagation @onsubmit="AskConfirmExpiry">
+            <div class="dialog-title">更改效期</div>
+            <div class="dialog-subtitle">
+                <span>@selectedIds.Count 筆序號</span>
+            </div>
+            <label class="field">
+                <span>效期</span>
+                <DateInput @bind-Value="newExpiryForSelection" />
+            </label>
+            <div class="dialog-actions">
+                <button type="button" class="button" @onclick="CancelChangeExpiry">取消</button>
+                <button type="submit" class="button primary" disabled="@(newExpiryForSelection is null)">確定</button>
+            </div>
+        </form>
+    </div>
+}
+
+@if (confirmingExpiry && newExpiryForSelection is { } confirmDate)
+{
+    <ConfirmDialog Title="更改效期"
+                   Message="@($"確定要把 {selectedIds.Count} 筆序號的效期改成 {confirmDate:yyyy/MM/dd} 嗎？")"
+                   ConfirmText="更改"
+                   OnConfirm="ConfirmChangeExpiry" OnCancel="() => confirmingExpiry = false" />
+}
+
+@if (importOpen)
+{
+    <ImportDialog OnClosed="CloseImport" />
+}
+
+@if (pendingResetIds is not null)
+{
+    <ConfirmDialog Title="改回未兌換"
+                   Message="@($"確定要把 {pendingResetIds.Count} 筆序號改回未兌換嗎？兌換時間和送給誰會被清掉。")"
+                   ConfirmText="改回"
+                   OnConfirm="ConfirmReset" OnCancel="() => pendingResetIds = null" />
+}
+
+@if (pendingDeleteIds is not null)
+{
+    <ConfirmDialog Title="刪除"
+                   Message="@($"確定要刪除 {pendingDeleteIds.Count} 筆序號嗎？刪除後會移到垃圾桶，可以再復原。")"
+                   ConfirmText="刪除"
+                   OnConfirm="ConfirmDelete" OnCancel="() => pendingDeleteIds = null" />
+}
+
+@code {
+    /// <summary>按「垃圾桶」時切換到垃圾桶頁（由最上層的 App 處理）。</summary>
+    [Parameter] public EventCallback OnOpenTrash { get; set; }
+
+    /// <summary>點了到期通知時為 true：打開就只顯示「快到期」。</summary>
+    [Parameter] public bool StartWithExpiringFilter { get; set; }
+
+    // 操作完成的短暫提示
+    private string? toastMessage;
+    private int toastVersion;
+
+    private enum FormField { None, Code, ExpiresOn }
+
+    private List<SerialCode> items = new();
+    private int trashCount;
+
+    // 勾選（批次刪除用）
+    private readonly HashSet<long> selectedIds = new();
+
+    // 等待確認的刪除（null 代表沒有要刪的）
+    private List<long>? pendingDeleteIds;
+
+    // 等待確認的「改回未兌換」：只放實際會變更的（已兌換、已送出）
+    private List<long>? pendingResetIds;
+
+    // 新增表單
+    private ElementReference codeInput;
+    private string newCode = "";
+    private string newItemName = "";
+    private string newPrizeLevel = "";
+    private DateTime? newExpiresOn;
+
+    // 欄位下方浮出的錯誤提示，3 秒後自動消失
+    private FormField errorField;
+    private string? errorMessage;
+    private int errorVersion;
+
+    // 送出
+    private List<SerialCode>? givingItems;   // 要送出的序號（單筆或多選）；null 代表視窗沒開
+    private int givingSkipped;               // 多選時，已兌換或已送出、不會變更的筆數
+    private bool givingFromSelection;
+    private string giveName = "";
+    private ElementReference giveInput;
+    private bool focusGiveInput;
+
+    // 「狀態更新」選單是否展開
+    private bool statusMenuOpen;
+
+    // 更改效期：選日期的視窗 → 確認視窗；確認視窗按取消會回到選日期
+    private bool changingExpiry;
+    private bool confirmingExpiry;
+    private DateTime? newExpiryForSelection;
+
+    // 複製後短暫顯示勾勾
+    private long? copiedId;
+
+    // 備註直接編輯
+    private long? editingNoteId;
+    private string noteText = "";
+    private ElementReference noteInput;
+    private bool focusNoteInput;
+
+    // 批次匯入
+    private bool importOpen;
+
+    // 搜尋與篩選
+    private enum StatusFilter { All, Unredeemed, ExpiringSoon, Expired, Redeemed, Given }
+
+    private static readonly (StatusFilter Filter, string Label)[] StatusFilters =
+    [
+        (StatusFilter.All, "全部"),
+        (StatusFilter.Unredeemed, "未兌換"),
+        (StatusFilter.ExpiringSoon, "快到期"),
+        (StatusFilter.Expired, "已過期"),
+        (StatusFilter.Redeemed, "已兌換"),
+        (StatusFilter.Given, "已送出"),
+    ];
+
+    private string searchText = "";
+    private StatusFilter statusFilter = StatusFilter.All;
+    private string prizeLevelFilter = "";   // 空字串 = 全部
+    private int expiringDays;
+
+    /// <summary>
+    /// 套用搜尋與篩選後要顯示的序號。三個條件同時成立才顯示。
+    /// </summary>
+    private IEnumerable<SerialCode> FilteredItems
+    {
+        get
+        {
+            var today = DateTime.Today;
+            var keyword = searchText.Trim();
+
+            return items.Where(item =>
+                (keyword.Length == 0
+                    || item.Code.Contains(keyword, StringComparison.OrdinalIgnoreCase)
+                    || item.ItemName.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+                && (prizeLevelFilter.Length == 0 || item.PrizeLevel == prizeLevelFilter)
+                && statusFilter switch
+                {
+                    StatusFilter.Unredeemed => item.GetDisplayStatus(today) == DisplayStatus.Unredeemed,
+                    StatusFilter.ExpiringSoon => item.IsExpiringSoon(today, expiringDays),
+                    StatusFilter.Expired => item.GetDisplayStatus(today) == DisplayStatus.Expired,
+                    StatusFilter.Redeemed => item.GetDisplayStatus(today) == DisplayStatus.Redeemed,
+                    StatusFilter.Given => item.GetDisplayStatus(today) == DisplayStatus.Given,
+                    _ => true,
+                });
+        }
+    }
+
+    /// <summary>
+    /// 獎項等級下拉選單的選項：目前資料裡出現過的等級。
+    /// </summary>
+    private IEnumerable<string> PrizeLevels => items
+        .Select(item => item.PrizeLevel)
+        .OfType<string>()
+        .Distinct()
+        .Order(StringComparer.Ordinal);
+
+    protected override void OnInitialized()
+    {
+        expiringDays = Features.ExpiringDays;
+        if (StartWithExpiringFilter)
+        {
+            statusFilter = StatusFilter.ExpiringSoon;
+        }
+        LoadLastExpiresOn();
+        Reload();
+    }
+
+    // ── 批次匯出（只匯出勾選的那幾筆，順序與列表相同） ──
+
+    private List<SerialCode> SelectedInListOrder() =>
+        FilteredItems.Where(item => selectedIds.Contains(item.Id)).ToList();
+
+    // 管理頁關掉的欄位不匯出
+    private ExportColumns ExportColumns =>
+        new(Features.PrizeLevelVisible, Features.AcquiredAtVisible, Features.GiveEnabled, Features.NoteVisible);
+
+    private void ExportExcel()
+    {
+        statusMenuOpen = false;
+        var path = Window.AskExportSavePath();
+        if (path is null)
+        {
+            return;
+        }
+
+        var selected = SelectedInListOrder();
+        try
+        {
+            SerialExporter.SaveExcel(SerialExporter.BuildTable(selected, ExportColumns, DateTime.Today), path);
+            ShowToast($"已匯出 {selected.Count} 筆");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"匯出失敗：{ex.Message}");
+        }
+    }
+
+    private void CopyAsText()
+    {
+        statusMenuOpen = false;
+        var selected = SelectedInListOrder();
+        var table = SerialExporter.BuildTable(selected, ExportColumns, DateTime.Today);
+        Window.CopyText(SerialExporter.ToTabText(table));
+        ShowToast($"已複製 {selected.Count} 筆");
+    }
+
+    private void ShowToast(string message)
+    {
+        toastMessage = message;
+        var version = ++toastVersion;
+        _ = HideToastLater(version);
+    }
+
+    private async Task HideToastLater(int version)
+    {
+        await Task.Delay(2500);
+        if (version == toastVersion)
+        {
+            toastMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 輸入框畫出來後，把游標放進去
+        if (focusGiveInput)
+        {
+            focusGiveInput = false;
+            await giveInput.FocusAsync();
+        }
+        if (focusNoteInput)
+        {
+            focusNoteInput = false;
+            await noteInput.FocusAsync();
+        }
+    }
+
+    // 效期自動帶入上一次填的日期（手動新增與批次匯入共用）
+    private void LoadLastExpiresOn()
+    {
+        if (DateTime.TryParse(Settings.Get(SettingsRepository.LastExpiresOnKey), out var lastExpiresOn))
+        {
+            newExpiresOn = lastExpiresOn;
+        }
+    }
+
+    private void CloseImport()
+    {
+        importOpen = false;
+        LoadLastExpiresOn();
+        Reload();
+    }
+
+    private void StartEditNote(SerialCode item)
+    {
+        if (editingNoteId == item.Id)
+        {
+            return;
+        }
+        editingNoteId = item.Id;
+        noteText = item.Note ?? "";
+        focusNoteInput = true;
+    }
+
+    // Enter 或點到別的地方就存檔；Esc 取消
+    private void SaveNote()
+    {
+        if (editingNoteId is not { } id)
+        {
+            return;
+        }
+        editingNoteId = null;
+        Repository.UpdateNote(id, noteText);
+        Reload();
+    }
+
+    private void OnNoteKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SaveNote();
+        }
+        else if (e.Key == "Escape")
+        {
+            editingNoteId = null;
+        }
+    }
+
+    private void Reload()
+    {
+        items = Repository.GetAll();
+        trashCount = Repository.CountTrash();
+        selectedIds.IntersectWith(items.Select(item => item.Id));   // 已經不在列表上的，取消勾選
+    }
+
+    // ── 勾選與刪除 ──
+
+    private void ToggleSelect(long id, bool selected)
+    {
+        if (selected)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
+    }
+
+    // 表頭的勾選框：全選或全部取消「目前看得到的」序號
+    private void ToggleSelectAll(List<SerialCode> visibleItems, bool selected)
+    {
+        selectedIds.Clear();
+        if (selected)
+        {
+            selectedIds.UnionWith(visibleItems.Select(item => item.Id));
+        }
+    }
+
+    // 換篩選條件時取消勾選，避免勾了看不到的序號又被一起刪掉
+    private void ClearSelection() => selectedIds.Clear();
+
+    private void SetStatusFilter(StatusFilter filter)
+    {
+        statusFilter = filter;
+        ClearSelection();
+    }
+
+    // 刪除前先跳確認視窗；確認後移到垃圾桶
+    private void DeleteOne(SerialCode item) => pendingDeleteIds = [item.Id];
+
+    private void DeleteSelected()
+    {
+        statusMenuOpen = false;
+        pendingDeleteIds = selectedIds.ToList();
+    }
+
+    private void ConfirmDelete()
+    {
+        if (pendingDeleteIds is not null)
+        {
+            Repository.MoveToTrash(pendingDeleteIds);
+            selectedIds.ExceptWith(pendingDeleteIds);
+        }
+        pendingDeleteIds = null;
+        Reload();
+    }
+
+    private async Task AddSerial()
+    {
+        var code = newCode.Trim();
+        if (code.Length == 0)
+        {
+            ShowError(FormField.Code, "請輸入序號");
+            return;
+        }
+        if (newExpiresOn is null)
+        {
+            ShowError(FormField.ExpiresOn, "請選擇效期");
+            return;
+        }
+
+        var prizeLevel = string.IsNullOrWhiteSpace(newPrizeLevel) ? null : newPrizeLevel.Trim();
+        var result = Repository.Add(code, newItemName.Trim(), prizeLevel, newExpiresOn.Value);
+        if (result == AddResult.Duplicate)
+        {
+            ShowError(FormField.Code, "這個序號已經存在");
+            return;
+        }
+
+        Settings.Set(SettingsRepository.LastExpiresOnKey, newExpiresOn.Value.ToString("yyyy-MM-dd"));
+        ClearError(errorField);
+        newCode = "";
+        newItemName = "";
+        newPrizeLevel = "";
+        Reload();
+
+        // 游標回到序號欄，方便連續輸入
+        await codeInput.FocusAsync();
+    }
+
+    private void ShowError(FormField field, string message)
+    {
+        errorField = field;
+        errorMessage = message;
+        var version = ++errorVersion;
+        _ = HideErrorLater(version);
+    }
+
+    private async Task HideErrorLater(int version)
+    {
+        await Task.Delay(3000);
+        if (version == errorVersion)   // 這段時間內沒有出現新的錯誤才收起來
+        {
+            ClearError(errorField);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // 使用者開始修改出錯的欄位時，提示就收起來
+    private void ClearError(FormField field)
+    {
+        if (errorField == field)
+        {
+            errorField = FormField.None;
+            errorMessage = null;
+        }
+    }
+
+    private string Invalid(FormField field) => errorField == field ? "invalid" : "";
+
+    private void ToggleRedeemed(SerialCode item, bool redeemed)
+    {
+        if (redeemed)
+        {
+            Repository.MarkRedeemed(item.Id);
+        }
+        else
+        {
+            Repository.UnmarkRedeemed(item.Id);
+        }
+        Reload();
+    }
+
+    // 列表上單筆的「送出」
+    private void StartGive(SerialCode item)
+    {
+        givingItems = [item];
+        givingSkipped = 0;
+        givingFromSelection = false;
+        giveName = "";
+        focusGiveInput = true;
+    }
+
+    // 多選的「送出」：只送「未兌換」的，已兌換、已送出的不變更
+    private void StartGiveSelected()
+    {
+        statusMenuOpen = false;
+        var selected = SelectedInListOrder();
+        givingItems = selected.Where(item => item.Status == SerialStatus.Unredeemed).ToList();
+        givingSkipped = selected.Count - givingItems.Count;
+        givingFromSelection = true;
+        giveName = "";
+        focusGiveInput = true;
+    }
+
+    private void ConfirmGive()
+    {
+        if (givingItems is null || string.IsNullOrWhiteSpace(giveName))
+        {
+            return;
+        }
+
+        var count = Repository.GiveToMany(givingItems.Select(item => item.Id), giveName.Trim());
+        givingItems = null;
+        if (givingFromSelection)
+        {
+            selectedIds.Clear();
+            ShowToast($"已送出 {count} 筆");
+        }
+        Reload();
+    }
+
+    private void CancelGive() => givingItems = null;
+
+    // 多選的「已兌換」：本來就是已兌換的不動
+    private void RedeemSelected()
+    {
+        statusMenuOpen = false;
+        var count = Repository.MarkRedeemedMany(selectedIds);
+        selectedIds.Clear();
+        Reload();
+        ShowToast($"已標記 {count} 筆為已兌換");
+    }
+
+    // 多選的「改回未兌換」：先跳確認，確認後清掉兌換時間和送給誰
+    private void AskResetSelected()
+    {
+        statusMenuOpen = false;
+        pendingResetIds = items
+            .Where(item => selectedIds.Contains(item.Id) && item.Status != SerialStatus.Unredeemed)
+            .Select(item => item.Id)
+            .ToList();
+    }
+
+    // 多選的「更改效期」：勾選的全部都改，不管狀態
+    private void StartChangeExpiry()
+    {
+        statusMenuOpen = false;
+        newExpiryForSelection = null;
+        confirmingExpiry = false;
+        changingExpiry = true;
+    }
+
+    private void CancelChangeExpiry() => changingExpiry = false;
+
+    private void AskConfirmExpiry()
+    {
+        if (newExpiryForSelection is not null)
+        {
+            confirmingExpiry = true;
+        }
+    }
+
+    private void ConfirmChangeExpiry()
+    {
+        if (newExpiryForSelection is not { } expiresOn)
+        {
+            return;
+        }
+
+        var count = Repository.UpdateExpiresOnMany(selectedIds, expiresOn);
+        changingExpiry = false;
+        confirmingExpiry = false;
+        selectedIds.Clear();
+        Reload();
+        ShowToast($"已更改 {count} 筆效期");
+    }
+
+    private void ConfirmReset()
+    {
+        if (pendingResetIds is null)
+        {
+            return;
+        }
+
+        var count = Repository.ResetToUnredeemedMany(pendingResetIds);
+        pendingResetIds = null;
+        selectedIds.Clear();
+        Reload();
+        ShowToast($"已改回 {count} 筆為未兌換");
+    }
+
+    // 勾選的序號裡，有沒有符合條件的（用來決定按鈕能不能按）
+    private bool SelectedHasStatus(Func<SerialStatus, bool> condition) =>
+        items.Any(item => selectedIds.Contains(item.Id) && condition(item.Status));
+
+    private void OnGiveKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            CancelGive();
+        }
+    }
+
+    private void TakeBack(SerialCode item)
+    {
+        Repository.TakeBack(item.Id);
+        Reload();
+    }
+
+    private async Task CopyCode(SerialCode item)
+    {
+        Window.CopyText(item.Code);
+        copiedId = item.Id;
+
+        await Task.Delay(1500);
+        if (copiedId == item.Id)
+        {
+            copiedId = null;
+        }
+    }
+
+    private static string StatusText(DisplayStatus status) => status switch
+    {
+        DisplayStatus.Redeemed => "已兌換",
+        DisplayStatus.Given => "已送出",
+        DisplayStatus.Expired => "已過期",
+        _ => "未兌換",
+    };
+
+    // 效期欄的顏色：已過期紅色、快到期橘色
+    private static string ExpiresClass(DisplayStatus status, bool expiringSoon) =>
+        status == DisplayStatus.Expired ? "date-expired" : expiringSoon ? "date-expiring" : "";
+}

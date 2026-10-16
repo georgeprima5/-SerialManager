@@ -1,0 +1,13 @@
+@* 勾選後浮在畫面底部的操作列：第一行顯示數量、第二行是功能按鈕；不佔版面，出現時不會把列表往下推 *@
+@if (Count > 0)
+{
+    <div class="selection-bar card">
+        <div class="selection-count">已選取 @Count 筆</div>
+        <div class="selection-actions">@ChildContent</div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Count { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

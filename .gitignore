@@ -1,0 +1,14 @@
+# 編譯輸出
+bin/
+obj/
+publish/
+
+# 個人資料：序號資料庫、備份檔
+*.db
+*.db-shm
+*.db-wal
+
+# 編輯器
+.vs/
+.vscode/
+*.user

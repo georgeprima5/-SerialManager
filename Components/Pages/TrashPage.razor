@@ -1,0 +1,147 @@
+@inject SerialRepository Repository
+
+<div class="card page-header">
+    <button type="button" class="icon-button icon back-button" @onclick="OnBack">&#xE72B;</button>
+    <span class="page-title">垃圾桶</span>
+    <button type="button" class="button danger" disabled="@(items.Count == 0)" @onclick="AskEmpty">清空垃圾桶</button>
+</div>
+
+<SelectionBar Count="selectedIds.Count">
+    <button type="button" class="button" @onclick="RestoreSelected">復原</button>
+    <button type="button" class="button danger" @onclick="() => AskDelete(selectedIds.ToList())">永久刪除</button>
+</SelectionBar>
+
+<div class="card table-card">
+    <table class="serial-table">
+        <colgroup>
+            <col /><col />
+            <col class="w-content" /><col class="w-level" />
+            <col /><col /><col />
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="col-check">
+                    <input type="checkbox" checked="@(items.Count > 0 && selectedIds.Count == items.Count)" @onchange="ToggleSelectAll" />
+                </th>
+                <th>序號</th>
+                <th>內容</th>
+                <th>獎項等級</th>
+                <th>效期</th>
+                <th>刪除時間</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in items)
+            {
+                <tr>
+                    <td class="col-check">
+                        <input type="checkbox" checked="@selectedIds.Contains(item.Id)" @onchange="e => ToggleSelect(item.Id, (bool)e.Value!)" />
+                    </td>
+                    <td><span class="code ellipsis code-max" title="@item.Code">@item.Code</span></td>
+                    <td class="shrink">
+                        <span class="ellipsis" title="@item.ItemName"><TruncatedText Text="@item.ItemName" Title="內容" Subtitle="@item.Code" /></span>
+                    </td>
+                    <td class="shrink"><span class="ellipsis" title="@item.PrizeLevel">@item.PrizeLevel</span></td>
+                    <td>@item.ExpiresOn.ToString("yyyy/MM/dd")</td>
+                    <td>@item.DeletedAt?.ToString("yyyy/MM/dd HH:mm")</td>
+                    <td class="col-actions">
+                        <div class="row-actions">
+                            <button type="button" class="button" @onclick="() => Restore(item.Id)">復原</button>
+                            <button type="button" class="button danger" @onclick="() => AskDelete([item.Id])">永久刪除</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (pendingDeleteIds is not null)
+{
+    <ConfirmDialog Title="永久刪除"
+                   Message="@($"確定要永久刪除 {pendingDeleteIds.Count} 筆序號嗎？刪除後無法復原。")"
+                   ConfirmText="永久刪除"
+                   OnConfirm="ConfirmDelete" OnCancel="() => pendingDeleteIds = null" />
+}
+
+@if (confirmEmpty)
+{
+    <ConfirmDialog Title="清空垃圾桶"
+                   Message="@($"確定要清空垃圾桶（{items.Count} 筆）嗎？刪除後無法復原。")"
+                   ConfirmText="清空垃圾桶"
+                   OnConfirm="ConfirmEmpty" OnCancel="() => confirmEmpty = false" />
+}
+
+@code {
+    [Parameter] public EventCallback OnBack { get; set; }
+
+    private List<SerialCode> items = new();
+    private readonly HashSet<long> selectedIds = new();
+
+    // 等待確認的永久刪除（null 代表沒有要刪的）
+    private List<long>? pendingDeleteIds;
+    private bool confirmEmpty;
+
+    protected override void OnInitialized() => Reload();
+
+    private void Reload()
+    {
+        items = Repository.GetTrash();
+        selectedIds.Clear();
+    }
+
+    private void ToggleSelect(long id, bool selected)
+    {
+        if (selected)
+        {
+            selectedIds.Add(id);
+        }
+        else
+        {
+            selectedIds.Remove(id);
+        }
+    }
+
+    private void ToggleSelectAll(ChangeEventArgs e)
+    {
+        selectedIds.Clear();
+        if ((bool)e.Value!)
+        {
+            selectedIds.UnionWith(items.Select(item => item.Id));
+        }
+    }
+
+    private void Restore(long id)
+    {
+        Repository.RestoreFromTrash([id]);
+        Reload();
+    }
+
+    private void RestoreSelected()
+    {
+        Repository.RestoreFromTrash(selectedIds);
+        Reload();
+    }
+
+    private void AskDelete(List<long> ids) => pendingDeleteIds = ids;
+
+    private void ConfirmDelete()
+    {
+        if (pendingDeleteIds is not null)
+        {
+            Repository.DeletePermanently(pendingDeleteIds);
+        }
+        pendingDeleteIds = null;
+        Reload();
+    }
+
+    private void AskEmpty() => confirmEmpty = true;
+
+    private void ConfirmEmpty()
+    {
+        Repository.EmptyTrash();
+        confirmEmpty = false;
+        Reload();
+    }
+}

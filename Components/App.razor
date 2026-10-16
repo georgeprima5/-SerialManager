@@ -1,0 +1,70 @@
+@inject AppearanceService Appearance
+@inject WindowService Window
+@implements IDisposable
+
+@* 最上層元件：套用主題與字型，並切換顯示列表、垃圾桶或設定頁 *@
+<div class="app-shell" data-theme="@(Appearance.IsDark ? "dark" : "light")"
+     style="--app-font: @Appearance.Font.CssFamily; --app-font-size: @(Appearance.Size.Pixels)px; @Appearance.Palette.ToCssVariables()">
+
+    <TitleBar SettingsOpen="settingsOpen" OnToggleSettings="ToggleSettings" />
+
+    <main class="app-content">
+        @if (settingsOpen)
+        {
+            <SettingsPage />
+        }
+        else if (trashOpen)
+        {
+            <TrashPage OnBack="() => trashOpen = false" />
+        }
+        else
+        {
+            @* @key 改變時會重新建立列表頁（用在點到期通知時，直接切到「快到期」） *@
+            <SerialListPage @key="listVersion" OnOpenTrash="OpenTrash" StartWithExpiringFilter="startWithExpiringFilter" />
+        }
+    </main>
+</div>
+
+@code {
+    private bool settingsOpen;
+    private bool trashOpen;
+    private int listVersion;
+    private bool startWithExpiringFilter;
+
+    protected override void OnInitialized()
+    {
+        Appearance.Changed += OnAppearanceChanged;
+        Window.ExpiringNotificationClicked += OnExpiringNotificationClicked;
+    }
+
+    private void ToggleSettings()
+    {
+        settingsOpen = !settingsOpen;
+        startWithExpiringFilter = false;
+    }
+
+    private void OpenTrash()
+    {
+        trashOpen = true;
+        startWithExpiringFilter = false;
+    }
+
+    // 點了到期通知：回到序號列表，只顯示快到期的
+    private void OnExpiringNotificationClicked() => InvokeAsync(() =>
+    {
+        settingsOpen = false;
+        trashOpen = false;
+        startWithExpiringFilter = true;
+        listVersion++;
+        StateHasChanged();
+    });
+
+    // 外觀設定可能從其他執行緒通知（例如 Windows 切換深淺色），用 InvokeAsync 回到畫面的執行緒
+    private void OnAppearanceChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Appearance.Changed -= OnAppearanceChanged;
+        Window.ExpiringNotificationClicked -= OnExpiringNotificationClicked;
+    }
+}

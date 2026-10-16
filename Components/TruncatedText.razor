@@ -1,0 +1,36 @@
+@* 超過 MaxLength 個字就截斷、尾端加「…」，點一下跳出視窗看完整內容 *@
+@if (Text.Length > MaxLength)
+{
+    @* 用一般文字而不是按鈕，空間不夠時才能再被「…」截斷 *@
+    <span class="truncated" @onclick="() => open = true">@Text[..MaxLength]…</span>
+
+    @if (open)
+    {
+        <div class="dialog-backdrop" @onclick="() => open = false">
+            <div class="dialog card dialog-confirm" @onclick:stopPropagation>
+                <div class="dialog-header">
+                    <div class="dialog-title">@Title</div>
+                    <button type="button" class="dialog-close icon" @onclick="() => open = false">&#xE8BB;</button>
+                </div>
+                @if (Subtitle is not null)
+                {
+                    <div class="dialog-subtitle"><span class="code">@Subtitle</span></div>
+                }
+                <div class="full-text">@Text</div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    @Text
+}
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public int MaxLength { get; set; } = 15;
+
+    private bool open;
+}

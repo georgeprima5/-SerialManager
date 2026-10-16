@@ -1,0 +1,47 @@
+@inject WindowService Window
+@implements IDisposable
+
+@* 自己畫的標題列：按住空白處拖曳視窗，連點兩下最大化／還原 *@
+<header class="titlebar" @onmousedown="OnTitleMouseDown">
+    <button class="titlebar-icon-button icon @(SettingsOpen ? "active" : "")"
+            @onclick="OnToggleSettings" @onmousedown:stopPropagation>&#xE713;</button>
+
+    <span class="titlebar-title">序號管理</span>
+
+    <div class="window-buttons" @onmousedown:stopPropagation>
+        <button class="window-button icon" @onclick="Window.Minimize">&#xE921;</button>
+        <button class="window-button icon" @onclick="Window.ToggleMaximize">@if (Window.IsMaximized) { <text>&#xE923;</text> } else { <text>&#xE922;</text> }</button>
+        <button class="window-button close icon" @onclick="Window.Close">&#xE8BB;</button>
+    </div>
+</header>
+
+@code {
+    [Parameter] public bool SettingsOpen { get; set; }
+    [Parameter] public EventCallback OnToggleSettings { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Window.StateChanged += OnWindowStateChanged;
+    }
+
+    private void OnTitleMouseDown(MouseEventArgs e)
+    {
+        if (e.Button != 0)   // 只處理滑鼠左鍵
+        {
+            return;
+        }
+
+        if (e.Detail >= 2)   // 連點兩下
+        {
+            Window.ToggleMaximize();
+        }
+        else
+        {
+            Window.BeginDrag();
+        }
+    }
+
+    private void OnWindowStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Window.StateChanged -= OnWindowStateChanged;
+}

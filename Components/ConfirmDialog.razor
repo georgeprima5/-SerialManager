@@ -1,0 +1,22 @@
+@* 確認視窗：用在無法復原的操作（永久刪除、清空垃圾桶） *@
+<div class="dialog-backdrop" @onclick="OnCancel">
+    <div class="dialog card dialog-confirm" @onclick:stopPropagation>
+        <div class="dialog-header">
+            <div class="dialog-title">@Title</div>
+            <button type="button" class="dialog-close icon" @onclick="OnCancel">&#xE8BB;</button>
+        </div>
+        <div>@Message</div>
+        <div class="dialog-actions">
+            <button type="button" class="button danger" @onclick="OnConfirm">@ConfirmText</button>
+            <button type="button" class="button" @onclick="OnCancel">取消</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+    [Parameter, EditorRequired] public string ConfirmText { get; set; } = "";
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+}

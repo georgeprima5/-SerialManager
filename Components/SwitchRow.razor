@@ -1,0 +1,14 @@
+@* 設定卡片裡的一列：左邊名稱、右邊開關 *@
+<div class="setting-subrow">
+    <span>@Label</span>
+    <label class="switch">
+        <input type="checkbox" checked="@Value" @onchange="e => OnChange.InvokeAsync((bool)e.Value!)" />
+        <span class="switch-track"></span>
+    </label>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public bool Value { get; set; }
+    [Parameter] public EventCallback<bool> OnChange { get; set; }
+}

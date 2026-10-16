@@ -1,0 +1,205 @@
+@inject AppearanceService Appearance
+@inject WindowService Window
+@inject BackupRepository Backup
+@inject FeatureSettings Features
+
+<div class="settings">
+    <section class="card">
+        <div class="setting-row">
+            <span>主題</span>
+            <div class="row-actions">
+                <div class="segmented">
+                    <button class="@Active(Appearance.Theme == ThemeMode.Light)" @onclick="() => Appearance.SetTheme(ThemeMode.Light)">淺色</button>
+                    <button class="@Active(Appearance.Theme == ThemeMode.Dark)" @onclick="() => Appearance.SetTheme(ThemeMode.Dark)">深色</button>
+                    <button class="@Active(Appearance.Theme == ThemeMode.System)" @onclick="() => Appearance.SetTheme(ThemeMode.System)">跟隨 Windows</button>
+                </div>
+                <button class="chevron icon @(themeExpanded ? "open" : "")" @onclick="() => themeExpanded = !themeExpanded">&#xE70D;</button>
+            </div>
+        </div>
+
+        @if (themeExpanded)
+        {
+            @* 調整的是目前正在顯示的那一組顏色（淺色或深色各自記住） *@
+            <div class="slider-row" style="--hue: @Appearance.CurrentHue">
+                <span class="slider-label">色相</span>
+                <input type="range" class="slider hue-slider" min="0" max="360"
+                       value="@Appearance.CurrentHue"
+                       @oninput="e => Appearance.PreviewColor(ToInt(e.Value), Appearance.CurrentShift)"
+                       @onchange="_ => Appearance.SaveColor()" />
+                <span class="slider-value">@(Appearance.CurrentHue)°</span>
+                <button class="button small" disabled="@(Appearance.CurrentHue == Appearance.DefaultHue)"
+                        @onclick="Appearance.ResetHue">預設</button>
+            </div>
+            <div class="slider-row" style="--hue: @Appearance.CurrentHue">
+                <span class="slider-label">明暗</span>
+                <input type="range" class="slider shade-slider" min="@Appearance.ShiftMin" max="@Appearance.ShiftMax"
+                       value="@Appearance.CurrentShift"
+                       @oninput="e => Appearance.PreviewColor(Appearance.CurrentHue, ToInt(e.Value))"
+                       @onchange="_ => Appearance.SaveColor()" />
+                <span class="slider-value">@ShiftText(Appearance.CurrentShift)</span>
+                <button class="button small" disabled="@(Appearance.CurrentShift == 0)"
+                        @onclick="Appearance.ResetShift">預設</button>
+            </div>
+        }
+    </section>
+
+    <section class="card setting-row">
+        <span>字型</span>
+        <select class="select" value="@Appearance.Font.Key" @onchange="e => Appearance.SetFont(e.Value?.ToString())">
+            @foreach (var font in AppearanceService.Fonts)
+            {
+                <option value="@font.Key">@font.DisplayName</option>
+            }
+        </select>
+    </section>
+
+    <section class="card setting-row">
+        <span>字體大小</span>
+        <div class="segmented">
+            @foreach (var size in AppearanceService.Sizes)
+            {
+                <button class="@Active(Appearance.Size.Key == size.Key)" @onclick="() => Appearance.SetSize(size.Key)">@size.DisplayName</button>
+            }
+        </div>
+    </section>
+
+    <section class="card setting-row">
+        <span>關閉視窗時</span>
+        <div class="segmented">
+            <button class="@Active(Window.CloseToTray)" @onclick="() => Window.SetCloseToTray(true)">收進系統匣</button>
+            <button class="@Active(!Window.CloseToTray)" @onclick="() => Window.SetCloseToTray(false)">直接結束</button>
+        </div>
+    </section>
+
+    @* ── 管理：功能開關、欄位開關、數值設定（關掉的功能或欄位完全隱藏，資料不刪除） ── *@
+    <section class="card">
+        <div class="setting-row">
+            <span>功能開關</span>
+            <button class="chevron icon @(featuresExpanded ? "open" : "")" @onclick="() => featuresExpanded = !featuresExpanded">&#xE70D;</button>
+        </div>
+        @if (featuresExpanded)
+        {
+            <SwitchRow Label="批次匯入" Value="Features.ImportEnabled" OnChange="Features.SetImport" />
+            <SwitchRow Label="批次匯出" Value="Features.ExportEnabled" OnChange="Features.SetExport" />
+            <SwitchRow Label="到期通知" Value="Features.NotifyEnabled" OnChange="Features.SetNotify" />
+        }
+    </section>
+
+    <section class="card">
+        <div class="setting-row">
+            <span>欄位開關</span>
+            <button class="chevron icon @(fieldsExpanded ? "open" : "")" @onclick="() => fieldsExpanded = !fieldsExpanded">&#xE70D;</button>
+        </div>
+        @if (fieldsExpanded)
+        {
+            <SwitchRow Label="送出功能" Value="Features.GiveEnabled" OnChange="Features.SetGive" />
+            <SwitchRow Label="獎項等級" Value="Features.PrizeLevelVisible" OnChange="Features.SetPrizeLevel" />
+            <SwitchRow Label="取得時間" Value="Features.AcquiredAtVisible" OnChange="Features.SetAcquiredAt" />
+            <SwitchRow Label="備註" Value="Features.NoteVisible" OnChange="Features.SetNote" />
+        }
+    </section>
+
+    <section class="card">
+        <div class="setting-row">
+            <span>數值設定</span>
+            <button class="chevron icon @(valuesExpanded ? "open" : "")" @onclick="() => valuesExpanded = !valuesExpanded">&#xE70D;</button>
+        </div>
+        @if (valuesExpanded)
+        {
+            @* @key 每次修改都換一個值，讓輸入框重新顯示調整後的數字（例如輸入 999 會變成上限 365） *@
+            <div class="setting-subrow">
+                <span>快到期天數</span>
+                <span class="number-field">
+                    <input @key="numberVersion" type="number" class="input number"
+                           min="@FeatureSettings.MinExpiringDays" max="@FeatureSettings.MaxExpiringDays"
+                           value="@Features.ExpiringDays" @onchange="e => { Features.SetExpiringDays(ToInt(e.Value)); numberVersion++; }" />
+                    <span>天</span>
+                </span>
+            </div>
+            <div class="setting-subrow">
+                <span>通知檢查頻率</span>
+                <span class="number-field">
+                    <span>每</span>
+                    <input @key="numberVersion" type="number" class="input number"
+                           min="@FeatureSettings.MinNotifyIntervalHours" max="@FeatureSettings.MaxNotifyIntervalHours"
+                           value="@Features.NotifyIntervalHours" @onchange="e => { Features.SetNotifyIntervalHours(ToInt(e.Value)); numberVersion++; }" />
+                    <span>小時</span>
+                </span>
+            </div>
+        }
+    </section>
+
+    <section class="card setting-row">
+        <span>備份</span>
+        <div class="row-actions">
+            @if (backupMessage is not null)
+            {
+                <span class="hint">@backupMessage</span>
+            }
+            <button class="button" @onclick="BackupData">備份</button>
+            <button class="button" @onclick="RestoreData">讀取</button>
+        </div>
+    </section>
+</div>
+
+@code {
+    private string? backupMessage;
+    private bool themeExpanded;
+    private bool featuresExpanded;
+    private bool fieldsExpanded;
+    private bool valuesExpanded;
+    private int numberVersion;
+
+    private static string Active(bool isActive) => isActive ? "active" : "";
+
+    private static int ToInt(object? value) => int.TryParse(value?.ToString(), out var number) ? number : 0;
+
+    // 明暗顯示成 +2、0、-3
+    private static string ShiftText(int shift) => shift > 0 ? $"+{shift}" : shift.ToString();
+
+    private void BackupData()
+    {
+        var path = Window.AskBackupSavePath();
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Backup.Backup(path);
+            backupMessage = "已備份";
+        }
+        catch (Exception ex)
+        {
+            backupMessage = $"備份失敗：{ex.Message}";
+        }
+    }
+
+    private void RestoreData()
+    {
+        var path = Window.AskBackupOpenPath();
+        if (path is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = Backup.Restore(path);
+            Appearance.Reload();
+            Features.Reload();
+            Window.ReloadSettings();
+            numberVersion++;
+            backupMessage = $"讀取完成：新增 {result.Added} 筆，略過 {result.Skipped} 筆重複";
+        }
+        catch (InvalidDataException)
+        {
+            backupMessage = "讀取失敗：這個檔案不是序號備份檔";
+        }
+        catch (Exception ex)
+        {
+            backupMessage = $"讀取失敗：{ex.Message}";
+        }
+    }
+}

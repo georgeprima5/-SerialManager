@@ -1,0 +1,947 @@
+/* ── 主題色 ──
+   --bg、--surface、--accent 等顏色變數由程式依「色相」「明暗」計算後，
+   寫在 .app-shell 的 style 上（見 AppearanceService.Palette）。這裡只決定瀏覽器內建元件用淺色或深色。 */
+.app-shell[data-theme="light"] {
+    color-scheme: light;
+}
+
+.app-shell[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--app-font);
+    font-size: var(--app-font-size);
+}
+
+button,
+select {
+    font: inherit;
+    color: inherit;
+}
+
+/* Windows 內建的圖示字型（齒輪、最小化、最大化、關閉） */
+.icon {
+    font-family: "Segoe MDL2 Assets";
+}
+
+/* ── 標題列 ── */
+.titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 40px;
+    padding: 0 4px 0 10px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.titlebar-title {
+    flex: 1;
+}
+
+.titlebar-icon-button {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.titlebar-icon-button:hover {
+    background: var(--surface-alt);
+}
+
+.titlebar-icon-button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.window-buttons {
+    display: flex;
+}
+
+.window-button {
+    width: 40px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.window-button:hover {
+    background: var(--hover);
+}
+
+.window-button.close:hover {
+    background: #e81123;
+    color: #fff;
+}
+
+/* ── 內容區 ── */
+.app-content {
+    flex: 1;
+    overflow: auto;
+    /* 一直保留捲軸的位置：筆數變少、捲軸消失時，畫面寬度才不會改變 */
+    scrollbar-gutter: stable;
+    /* 底部固定留空間給浮動的「已選取」操作列（兩行），捲到最底時不會被它蓋住 */
+    padding: 4px 14px 120px;
+}
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+/* ── 設定頁 ── */
+.settings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 8px 16px;
+    box-sizing: border-box;
+}
+
+/* 膠囊形切換按鈕 */
+.segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--segment-bg);
+}
+
+.segmented button {
+    padding: 4px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.segmented button.active {
+    background: var(--segment-active);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.select {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--segment-bg);
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hint {
+    color: var(--text-muted);
+}
+
+/* 一般按鈕：圓角外框 */
+.button {
+    padding: 4px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.button:hover {
+    background: var(--surface-alt);
+}
+
+.button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+}
+
+.button.primary:hover {
+    filter: brightness(1.08);
+}
+
+.button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.input {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    outline: none;
+    font: inherit;
+    color: inherit;
+}
+
+.input:focus {
+    border-color: var(--accent);
+}
+
+.input.invalid {
+    border-color: #d9534f;
+}
+
+/* 欄位下方浮出的紅色錯誤提示 */
+.field-error {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 10;
+    margin-top: 8px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: #d9534f;
+    color: #fff;
+    font-size: 0.9em;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    animation: pop-in 0.15s ease-out;
+}
+
+.field-error::before {
+    content: "";
+    position: absolute;
+    top: -5px;
+    left: 14px;
+    border: 5px solid transparent;
+    border-top: none;
+    border-bottom-color: #d9534f;
+}
+
+@keyframes pop-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+/* 效期欄：空白時用自己的「年/月/日」取代瀏覽器的 yyyy/月/dd */
+.date-box {
+    position: relative;
+    display: inline-flex;
+}
+
+.date-box .input {
+    cursor: pointer;
+}
+
+.date-placeholder {
+    display: none;
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+
+.date-box.empty .input:not(:focus)::-webkit-datetime-edit {
+    color: transparent;
+}
+
+.date-box.empty .input:not(:focus) + .date-placeholder {
+    display: block;
+}
+
+/* ── 設定頁：可展開的卡片與滑桿 ── */
+.chevron {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.chevron:hover {
+    background: var(--hover);
+}
+
+.chevron.open {
+    transform: rotate(180deg);
+}
+
+/* 管理卡片展開後的每一列：左邊名稱、右邊開關或數字 */
+.setting-subrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* 開關：外觀像手機的切換鈕，實際是一個勾選框 */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    cursor: pointer;
+}
+
+.switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--segment-bg);
+    border: 1px solid var(--border);
+    transition: background 0.15s;
+}
+
+.switch-track::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s;
+}
+
+.switch input:checked + .switch-track {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.switch input:checked + .switch-track::before {
+    transform: translateX(18px);
+}
+
+.number-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.input.number {
+    width: 70px;
+    text-align: right;
+}
+
+/* 展開後的每一列：標籤｜滑桿（拉滿）｜數值｜預設 */
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+}
+
+.slider-label {
+    width: 2.5em;
+}
+
+.slider-value {
+    width: 3em;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+.slider {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    appearance: none;
+}
+
+.hue-slider {
+    background: linear-gradient(to right,
+        hsl(0 70% 60%), hsl(60 70% 60%), hsl(120 70% 60%), hsl(180 70% 60%),
+        hsl(240 70% 60%), hsl(300 70% 60%), hsl(360 70% 60%));
+}
+
+.hue-slider::-webkit-slider-thumb {
+    background: hsl(var(--hue) 70% 50%);
+}
+
+.shade-slider {
+    background: linear-gradient(to right, hsl(var(--hue) 55% 62%), hsl(var(--hue) 35% 86%));
+}
+
+.shade-slider::-webkit-slider-thumb {
+    background: hsl(var(--hue) 60% 82%);
+}
+
+.button.small {
+    padding: 2px 10px;
+    font-size: 0.9em;
+}
+
+/* ── 彈出視窗 ── */
+.dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 320px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-title {
+    font-size: 1.1em;
+}
+
+.dialog-subtitle {
+    display: flex;
+    gap: 10px;
+    color: var(--text-muted);
+}
+
+.dialog .input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* 視窗標題列：標題在左、✕ 在右 */
+.dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.dialog-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.dialog-close:hover {
+    background: #e81123;
+    color: #fff;
+}
+
+/* 確認視窗：依訊息長度加寬，訊息盡量一行顯示完 */
+.dialog.dialog-confirm {
+    width: fit-content;
+    min-width: 360px;
+    max-width: min(680px, 90vw);
+}
+
+/* 被截斷的文字：看起來像一般文字，但可以點 */
+.truncated {
+    cursor: pointer;
+}
+
+.truncated:hover {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+/* 視窗裡的完整內容：保留換行，太長的英數字串也會換行 */
+.full-text {
+    max-height: 50vh;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* ── 批次匯入視窗 ── */
+.dialog.dialog-wide {
+    width: min(680px, 90vw);
+    max-height: 85vh;
+}
+
+/* 匯入結果的錯誤、重複清單：只有這一區捲動 */
+.dialog-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.import-text {
+    width: 100%;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: Consolas, "Courier New", monospace;
+    white-space: pre;
+}
+
+.import-summary {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--surface-alt);
+}
+
+.import-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.import-section-title {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+.import-line {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    border-left: 3px solid #d9534f;
+    background: var(--surface-alt);
+}
+
+.import-raw {
+    color: var(--text-muted);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.9em;
+    word-break: break-all;
+}
+
+.import-codes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: var(--text-muted);
+}
+
+/* ── 備註欄：點一下直接編輯 ── */
+.note-cell {
+    min-width: 4em;
+    cursor: text;
+}
+
+.note-cell:hover {
+    background: var(--hover);
+}
+
+.note-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* ── 手動新增 ── */
+.add-form {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+}
+
+.field {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* 欄位標題（第一個 span） */
+.field > span:first-child {
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+.field.grow {
+    flex: 1;
+    min-width: 160px;
+}
+
+.field.narrow .input {
+    width: 70px;
+}
+
+/* ── 序號列表 ── */
+.table-card {
+    overflow-x: auto;
+}
+
+.serial-table td {
+    vertical-align: middle;
+}
+
+/* ── 搜尋與篩選 ── */
+.filter-bar {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+}
+
+.trash-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+/* 固定寬度（可放 3 位數），數字變化時按鈕不會變寬 */
+.trash-button .count {
+    min-width: 2.2em;
+    padding: 0 4px;
+    box-sizing: border-box;
+    border-radius: 999px;
+    background: var(--segment-bg);
+    color: var(--text-muted);
+    font-size: 0.85em;
+    text-align: center;
+}
+
+/* ── 勾選後浮在畫面底部的操作列 ── */
+.selection-bar {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-color: var(--accent);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    transform: translateX(-50%);
+    animation: slide-up 0.15s ease-out;
+}
+
+.selection-actions {
+    display: flex;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+/* 操作完成的短暫提示：浮在「已選取」操作列上方 */
+.toast {
+    position: fixed;
+    bottom: 120px;
+    left: 50%;
+    z-index: 60;
+    padding: 8px 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    transform: translateX(-50%);
+    animation: slide-up 0.15s ease-out;
+}
+
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 8px);
+    }
+}
+
+.serial-table tr.selected td {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.delete-button:hover {
+    color: #d9534f;
+}
+
+/* 危險操作的按鈕（刪除、永久刪除） */
+.button.danger {
+    border-color: color-mix(in srgb, #d9534f 60%, transparent);
+    color: #d9534f;
+}
+
+.button.danger:hover:not(:disabled) {
+    background: #d9534f;
+    color: #fff;
+}
+
+/* ── 垃圾桶頁 ── */
+.page-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 8px 14px;
+}
+
+.page-title {
+    flex: 1;
+    font-size: 1.1em;
+}
+
+.back-button {
+    margin-left: 0;
+    font-size: 14px;
+}
+
+/* ── 狀態標籤 ── */
+.badge {
+    --badge-color: var(--accent);
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--badge-color) 16%, transparent);
+    color: var(--badge-color);
+    font-size: 0.9em;
+    white-space: nowrap;
+}
+
+.badge.redeemed { --badge-color: #2e9e5b; }
+.badge.given { --badge-color: #8a63d2; }
+.badge.expired { --badge-color: #d9534f; }
+.badge.expiring { --badge-color: #e08a1e; }
+
+.date-expired {
+    color: #d9534f;
+}
+
+.date-expiring {
+    color: #e08a1e;
+    font-weight: bold;
+}
+
+/* ── 避免列表比視窗還寬（出現左右捲軸） ──
+   shrink：內容、獎項等級、備註。max-width: 0 讓長文字不會把表格撐寬；
+           寬度由 colgroup 的比例決定（w-content 等），空間不夠時縮窄，裡面的 .ellipsis 截斷加「…」。
+   can-wrap：日期時間、狀態標籤，空間不夠時可以排成兩行。
+   序號：不縮窄，超過 20 個字才截斷。 */
+.serial-table td.shrink {
+    max-width: 0;
+}
+
+.serial-table col.w-content {
+    width: 22%;
+}
+
+.serial-table col.w-level {
+    width: 8%;
+}
+
+.serial-table col.w-note {
+    width: 14%;
+}
+
+.code-max,
+.code-cell .code {
+    max-width: 20ch;
+}
+
+.ellipsis {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.serial-table td.can-wrap {
+    white-space: normal;
+}
+
+/* 序號＋複製按鈕：序號截斷時按鈕仍然完整顯示 */
+.code-cell {
+    display: flex;
+    align-items: center;
+}
+
+.code-cell .ellipsis {
+    min-width: 0;
+}
+
+.code-cell .icon-button {
+    flex-shrink: 0;
+}
+
+/* 送給誰：名字最多 6 個字寬；空間不夠時名字和「收回」上下排 */
+.ellipsis.name {
+    max-width: 6em;
+}
+
+.row-actions.can-wrap {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+}
+
+.col-check {
+    text-align: center !important;
+    width: 1%;
+}
+
+.col-actions {
+    width: 1%;
+}
+
+.code {
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.icon-button {
+    margin-left: 4px;
+    padding: 2px 6px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.icon-button:hover {
+    border-color: var(--border);
+    background: var(--surface-alt);
+}
+
+.serial-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.serial-table th,
+.serial-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.serial-table th {
+    background: var(--surface-alt);
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.serial-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Blazor 發生未處理的錯誤時才會顯示 */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 8px 16px;
+    background: #ffe9a8;
+    color: #222;
+    box-sizing: border-box;
+}
+
+#blazor-error-ui .reload {
+    margin-left: 8px;
+}
+
+/* ── 操作列的「狀態更新」選單：在按鈕正上方展開 ── */
+.menu-anchor {
+    position: relative;
+}
+
+.menu-chevron {
+    margin-left: 6px;
+    font-size: 0.7em;
+}
+
+/* 選單外面的透明遮罩：點了就收起選單（蓋在列表上、操作列下面） */
+.menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+}
+
+.menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    padding: 4px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.menu button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.menu button:hover:not(:disabled) {
+    background: var(--hover);
+}
+
+.menu button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}

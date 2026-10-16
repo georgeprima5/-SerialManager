@@ -10,15 +10,31 @@
     <RootNamespace>SerialManager</RootNamespace>
     <!-- exe 在檔案總管、捷徑上顯示的圖示 -->
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- 畫面檔包進 exe 時一併產生檔案清單，執行時才能用原本的路徑讀取 -->
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <!-- 打包輸出的 publish 資料夾不算專案檔案，否則下次打包會把它再包進去 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);publish/**</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <!-- 視窗、工作列、系統匣用的圖示：包進 exe 裡，執行時讀出來 -->
     <EmbeddedResource Include="app.ico" LogicalName="SerialManager.app.ico" />
+    <!-- 畫面檔（html、css）包進 exe，單一 exe 就能執行（見 EmbeddedBlazorWebView） -->
+    <EmbeddedResource Include="wwwroot\**" />
+    <!-- Blazor 本身的啟動檔：平常由套件提供、打包時才複製進 wwwroot，這裡也包進 exe -->
+    <EmbeddedResource Include="$(PkgMicrosoft_AspNetCore_Components_WebView)\staticwebassets\blazor.webview.js"
+                      LogicalName="SerialManager.webview._framework.blazor.webview.js" />
+    <!-- 啟動時會讀的 JS 擴充清單；這個程式沒有用到，內容固定是 [] -->
+    <Content Remove="WebViewFramework\**" />
+    <EmbeddedResource Include="WebViewFramework\blazor.modules.json"
+                      LogicalName="SerialManager.webview._framework.blazor.modules.json" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="10.0.110" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.0" />
+    <!-- 只為了取得套件路徑（PkgMicrosoft_AspNetCore_Components_WebView），版本要和 WindowsForms 套件用的一致 -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView" Version="10.0.0" GeneratePathProperty="true" />
   </ItemGroup>
 
 </Project>

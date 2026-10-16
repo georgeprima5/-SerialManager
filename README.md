@@ -92,7 +92,7 @@
 dotnet run
 
 # 打包成單一 exe（不需要另外安裝 .NET），輸出在 publish 資料夾
-dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
+dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o publish
 ```
 
 技術：C# / .NET 10、WinForms + Blazor Hybrid（WebView2）、SQLite（Microsoft.Data.Sqlite）、ClosedXML。

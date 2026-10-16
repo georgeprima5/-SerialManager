@@ -83,7 +83,7 @@ public class MainForm : Form
         services.AddBlazorWebViewDeveloperTools();
 #endif
 
-        _blazorWebView = new BlazorWebView
+        _blazorWebView = new EmbeddedBlazorWebView
         {
             Dock = DockStyle.Fill,
             HostPage = "wwwroot/index.html",

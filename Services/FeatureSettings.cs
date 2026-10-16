@@ -12,6 +12,7 @@ public class FeatureSettings
     private const string ImportKey = "Feature.Import";
     private const string ExportKey = "Feature.Export";
     private const string NotifyKey = "Feature.Notify";
+    private const string CopyAskRedeemKey = "Feature.CopyAskRedeem";
 
     // 欄位開關
     private const string GiveKey = "Field.Give";
@@ -30,6 +31,7 @@ public class FeatureSettings
     public bool ImportEnabled { get; private set; }
     public bool ExportEnabled { get; private set; }
     public bool NotifyEnabled { get; private set; }
+    public bool CopyAskRedeemEnabled { get; private set; }
     public bool GiveEnabled { get; private set; }
     public bool PrizeLevelVisible { get; private set; }
     public bool AcquiredAtVisible { get; private set; }
@@ -49,6 +51,7 @@ public class FeatureSettings
     public void SetImport(bool value) => SetFlag(ImportKey, value);
     public void SetExport(bool value) => SetFlag(ExportKey, value);
     public void SetNotify(bool value) => SetFlag(NotifyKey, value);
+    public void SetCopyAskRedeem(bool value) => SetFlag(CopyAskRedeemKey, value);
     public void SetGive(bool value) => SetFlag(GiveKey, value);
     public void SetPrizeLevel(bool value) => SetFlag(PrizeLevelKey, value);
     public void SetAcquiredAt(bool value) => SetFlag(AcquiredAtKey, value);
@@ -88,6 +91,7 @@ public class FeatureSettings
         ImportEnabled = GetFlag(ImportKey, true);
         ExportEnabled = GetFlag(ExportKey, true);
         NotifyEnabled = GetFlag(NotifyKey, true);
+        CopyAskRedeemEnabled = GetFlag(CopyAskRedeemKey, false);   // 預設不詢問
         GiveEnabled = GetFlag(GiveKey, true);
         PrizeLevelVisible = GetFlag(PrizeLevelKey, true);
         AcquiredAtVisible = GetFlag(AcquiredAtKey, false);   // 預設不顯示取得時間

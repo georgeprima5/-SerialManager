@@ -12,6 +12,16 @@
 
         @if (result is null)
         {
+            @* 格式範例：每行一筆，欄位用 Tab 或空白分隔 *@
+            <div class="hint import-example">
+                <div>每行一筆，欄位之間用 Tab 或空白分隔，可以直接從 Excel 複製貼上。支援三種格式：</div>
+                <table>
+                    <tr><td>4 欄</td><td>取得時間、獎項等級、內容、序號</td><td class="code">10/05 21:30:24　C　優質生命水　ABCD1234EFGH5678</td></tr>
+                    <tr><td>3 欄</td><td>獎項等級、內容、序號</td><td class="code">C　優質生命水　ABCD1234EFGH5678</td></tr>
+                    <tr><td>2 欄</td><td>內容、序號</td><td class="code">優質生命水　ABCD1234EFGH5678</td></tr>
+                </table>
+                <div>取得時間的日期和時間分成兩行也可以。</div>
+            </div>
             <label class="field">
                 <span>貼上文字</span>
                 <textarea class="input import-text" rows="10" @ref="textArea"

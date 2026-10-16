@@ -312,6 +312,14 @@
                    OnConfirm="ConfirmReset" OnCancel="() => pendingResetIds = null" />
 }
 
+@if (askRedeemItem is not null)
+{
+    <ConfirmDialog Title="已複製序號"
+                   Message="@($"{askRedeemItem.Code} 已複製，要標記為已兌換嗎？")"
+                   ConfirmText="標記已兌換"
+                   OnConfirm="ConfirmAskRedeem" OnCancel="() => askRedeemItem = null" />
+}
+
 @if (pendingDeleteIds is not null)
 {
     <ConfirmDialog Title="刪除"
@@ -372,6 +380,9 @@
     private bool changingExpiry;
     private bool confirmingExpiry;
     private DateTime? newExpiryForSelection;
+
+    // 複製後詢問是否標記已兌換（管理頁開關打開時）；null 代表沒有要問的
+    private SerialCode? askRedeemItem;
 
     // 複製後短暫顯示勾勾
     private long? copiedId;
@@ -839,12 +850,26 @@
     {
         Window.CopyText(item.Code);
         copiedId = item.Id;
+        if (Features.CopyAskRedeemEnabled && item.Status != SerialStatus.Redeemed)
+        {
+            askRedeemItem = item;
+        }
 
         await Task.Delay(1500);
         if (copiedId == item.Id)
         {
             copiedId = null;
         }
+    }
+
+    private void ConfirmAskRedeem()
+    {
+        if (askRedeemItem is not null)
+        {
+            Repository.MarkRedeemed(askRedeemItem.Id);
+        }
+        askRedeemItem = null;
+        Reload();
     }
 
     private static string StatusText(DisplayStatus status) => status switch

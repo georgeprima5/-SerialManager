@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SerialManager.Data;
 
@@ -18,6 +19,7 @@ public record ParseResult(List<ImportRow> Rows, List<ImportError> Errors);
 ///   2 欄：內容 [Tab] 序號（沒有取得時間、獎項等級）
 /// 儲存格裡有換行時，Excel 會用雙引號把整格包起來，例如 "09/16(換行)19:49:52"；
 /// 沒有雙引號、日期和時間分在兩行的情況也能處理。
+/// 一行裡沒有 Tab 時改用空白分欄（見 SplitByWhitespace）。
 /// </summary>
 public static class SerialImportParser
 {
@@ -35,6 +37,10 @@ public static class SerialImportParser
         foreach (var record in MergeSplitDateLines(SplitRecords(text).ToList()))
         {
             var fields = record.Select(f => f.Trim()).ToList();
+            if (fields.Count == 1)
+            {
+                fields = SplitByWhitespace(fields[0]);   // 沒有 Tab：改用空白分欄
+            }
             if (fields.All(f => f.Length == 0))
             {
                 continue;   // 空白行
@@ -111,7 +117,7 @@ public static class SerialImportParser
         {
             var current = records[i];
             var isDateOnly = current.Count(f => f.Trim().Length > 0) == 1 && IsMonthDay(current[0].Trim());
-            if (isDateOnly && i + 1 < records.Count && records[i + 1].Count > 0 && IsTime(records[i + 1][0].Trim()))
+            if (isDateOnly && i + 1 < records.Count && records[i + 1].Count > 0 && StartsWithTime(records[i + 1][0].Trim()))
             {
                 var next = records[i + 1];
                 var merged = new List<string> { current[0].Trim() + " " + next[0].Trim() };
@@ -131,9 +137,54 @@ public static class SerialImportParser
         return parts.Length == 2 && parts.All(p => p.Length is >= 1 and <= 2 && p.All(char.IsDigit));
     }
 
-    // 「19:49:52」或「19:49」
-    private static bool IsTime(string value) =>
-        TimeSpan.TryParseExact(value, [@"h\:mm\:ss", @"h\:mm"], CultureInfo.InvariantCulture, out _);
+    // 「19:49:52」或「19:49」開頭；後面可以接空白和其他欄位（沒有 Tab、用空白分隔時）
+    private static bool StartsWithTime(string value) => LeadingTimeRegex.IsMatch(value);
+
+    private static readonly Regex LeadingTimeRegex = new(@"^\d{1,2}:\d{2}(:\d{2})?(\s|$)");
+
+    /// <summary>
+    /// 沒有 Tab、用空白（一個或多個）分隔的一行，拆成欄位：
+    ///   開頭是日期（可加時間）→ 取得時間；最後一個字串 → 序號；
+    ///   中間剩 2 個字串以上 → 第一個是獎項等級、其餘是內容（內容可以有空白）；只剩 1 個 → 內容。
+    /// 拆不出來（例如整行只有一個字串）就原樣回傳，交給欄位數檢查報錯。
+    /// </summary>
+    private static List<string> SplitByWhitespace(string line)
+    {
+        var match = WhitespaceLineRegex.Match(line);
+        if (!match.Success)
+        {
+            return [line];
+        }
+
+        var fields = new List<string>();
+        if (match.Groups["at"].Success)
+        {
+            fields.Add(Regex.Replace(match.Groups["at"].Value, @"\s+", " "));
+        }
+        var rest = match.Groups["rest"].Value;
+        var parts = rest.Split((char[]?)null, 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2)
+        {
+            fields.Add(parts[0]);                              // 獎項等級
+            fields.Add(Regex.Replace(parts[1], @"\s+", " "));  // 內容
+        }
+        else
+        {
+            if (fields.Count > 0)
+            {
+                fields.Add("");   // 有取得時間但只剩一個字串：當成沒有獎項等級
+            }
+            fields.Add(rest);
+        }
+        fields.Add(match.Groups["code"].Value);
+        return fields;
+    }
+
+    // [取得時間：月/日 或 年/月/日，可加時:分(:秒)] 中間 序號（最後一個不含空白的字串）
+    // 中間不能以時間開頭，避免「日期 時間 序號」被拆成「日期」＋內容「時間」
+    private static readonly Regex WhitespaceLineRegex = new(
+        @"^(?:(?<at>(?:\d{4}/)?\d{1,2}/\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)\s+)?(?<rest>(?!\d{1,2}:\d{2}(?::\d{2})?\s)\S.*?)\s+(?<code>\S+)$",
+        RegexOptions.Singleline);
 
     /// <summary>
     /// 把文字切成一筆一筆、每筆一個欄位清單。雙引號裡面的 Tab 和換行屬於儲存格內容，不切開。

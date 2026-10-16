@@ -945,3 +945,25 @@ select {
     opacity: 0.5;
     cursor: default;
 }
+
+/* ── 批次匯入的格式範例 ── */
+.import-example {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9em;
+}
+
+.import-example table {
+    border-collapse: collapse;
+}
+
+.import-example td {
+    padding: 1px 12px 1px 0;
+    white-space: nowrap;
+}
+
+.import-example td.code {
+    white-space: pre;
+    font-family: Consolas, "Courier New", monospace;
+}

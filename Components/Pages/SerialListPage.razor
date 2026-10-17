@@ -2,6 +2,7 @@
 @inject SettingsRepository Settings
 @inject WindowService Window
 @inject FeatureSettings Features
+@inject ExportSettings Exports
 
 @* ── 手動新增 ── *@
 <form class="card add-form" @onsubmit="AddSerial">
@@ -466,9 +467,9 @@
     private List<SerialCode> SelectedInListOrder() =>
         FilteredItems.Where(item => selectedIds.Contains(item.Id)).ToList();
 
-    // 管理頁關掉的欄位不匯出
-    private ExportColumns ExportColumns =>
-        new(Features.PrizeLevelVisible, Features.AcquiredAtVisible, Features.GiveEnabled, Features.NoteVisible);
+    // 匯出的欄位與順序依設定頁「匯出欄位」；欄位開關關掉的欄位不匯出
+    private IReadOnlyList<ExportField> FieldsFor(ExportTarget target) =>
+        Exports.GetFields(target, Features.IsExportFieldVisible);
 
     private void ExportExcel()
     {
@@ -482,7 +483,7 @@
         var selected = SelectedInListOrder();
         try
         {
-            SerialExporter.SaveExcel(SerialExporter.BuildTable(selected, ExportColumns, DateTime.Today), path);
+            SerialExporter.SaveExcel(SerialExporter.BuildTable(selected, FieldsFor(ExportTarget.Excel), DateTime.Today), path);
             ShowToast($"已匯出 {selected.Count} 筆");
         }
         catch (Exception ex)
@@ -495,7 +496,7 @@
     {
         statusMenuOpen = false;
         var selected = SelectedInListOrder();
-        var table = SerialExporter.BuildTable(selected, ExportColumns, DateTime.Today);
+        var table = SerialExporter.BuildTable(selected, FieldsFor(ExportTarget.Text), DateTime.Today, Exports.TextIncludeHeader);
         Window.CopyText(SerialExporter.ToTabText(table));
         ShowToast($"已複製 {selected.Count} 筆");
     }

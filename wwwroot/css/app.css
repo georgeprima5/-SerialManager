@@ -967,3 +967,30 @@ select {
     white-space: pre;
     font-family: Consolas, "Courier New", monospace;
 }
+
+/* ── 設定頁「匯出欄位」 ── */
+.export-target {
+    justify-content: flex-start;
+}
+
+.export-field .row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.export-field .icon-button:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.export-field .icon-button:disabled:hover {
+    border-color: transparent;
+    background: transparent;
+}
+
+/* 序號一定要匯出：開關固定打開、不能按 */
+.switch input:disabled + .switch-track {
+    opacity: 0.5;
+    cursor: default;
+}

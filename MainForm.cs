@@ -78,6 +78,7 @@ public class MainForm : Form
         services.AddSingleton<BackupRepository>();
         services.AddSingleton(_appearance);
         services.AddSingleton(_features);
+        services.AddSingleton(new ExportSettings(settingsRepository));
         services.AddSingleton(_windowService);
 #if DEBUG
         services.AddBlazorWebViewDeveloperTools();

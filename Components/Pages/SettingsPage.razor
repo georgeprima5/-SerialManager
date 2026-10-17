@@ -2,6 +2,7 @@
 @inject WindowService Window
 @inject BackupRepository Backup
 @inject FeatureSettings Features
+@inject ExportSettings Exports
 
 <div class="settings">
     <section class="card">
@@ -100,6 +101,49 @@
         }
     </section>
 
+    @* 匯出欄位：「匯出 Excel」和「複製文字」各自決定要匯出哪些欄位和順序；關掉批次匯出時整張卡片隱藏 *@
+    @if (Features.ExportEnabled)
+    {
+        <section class="card">
+            <div class="setting-row">
+                <span>匯出欄位</span>
+                <button class="chevron icon @(exportExpanded ? "open" : "")" @onclick="() => exportExpanded = !exportExpanded">&#xE70D;</button>
+            </div>
+            @if (exportExpanded)
+            {
+                <div class="setting-subrow export-target">
+                    <div class="segmented">
+                        <button class="@Active(exportTarget == ExportTarget.Excel)" @onclick="() => exportTarget = ExportTarget.Excel">匯出 Excel</button>
+                        <button class="@Active(exportTarget == ExportTarget.Text)" @onclick="() => exportTarget = ExportTarget.Text">複製文字</button>
+                    </div>
+                </div>
+                @if (exportTarget == ExportTarget.Text)
+                {
+                    <SwitchRow Label="包含標題列" Value="Exports.TextIncludeHeader" OnChange="Exports.SetTextIncludeHeader" />
+                }
+                @* 欄位開關關掉的欄位不列出；上下箭頭調整順序，開關決定要不要匯出（序號一定要匯出） *@
+                var visibleFields = Exports.GetItems(exportTarget).Where(item => Features.IsExportFieldVisible(item.Field)).ToList();
+                foreach (var (item, index) in visibleFields.Select((item, index) => (item, index)))
+                {
+                    <div class="setting-subrow export-field">
+                        <span>@SerialExporter.FieldName(item.Field)</span>
+                        <span class="row-actions">
+                            <button class="icon-button icon" disabled="@(index == 0)"
+                                    @onclick="() => Exports.Move(exportTarget, item.Field, -1, Features.IsExportFieldVisible)">&#xE70E;</button>
+                            <button class="icon-button icon" disabled="@(index == visibleFields.Count - 1)"
+                                    @onclick="() => Exports.Move(exportTarget, item.Field, 1, Features.IsExportFieldVisible)">&#xE70D;</button>
+                            <label class="switch">
+                                <input type="checkbox" checked="@item.Enabled" disabled="@(item.Field == ExportField.Code)"
+                                       @onchange="e => Exports.SetEnabled(exportTarget, item.Field, (bool)e.Value!)" />
+                                <span class="switch-track"></span>
+                            </label>
+                        </span>
+                    </div>
+                }
+            }
+        </section>
+    }
+
     <section class="card">
         <div class="setting-row">
             <span>數值設定</span>
@@ -149,6 +193,8 @@
     private bool featuresExpanded;
     private bool fieldsExpanded;
     private bool valuesExpanded;
+    private bool exportExpanded;
+    private ExportTarget exportTarget = ExportTarget.Excel;
     private int numberVersion;
 
     private static string Active(bool isActive) => isActive ? "active" : "";
@@ -190,6 +236,7 @@
             var result = Backup.Restore(path);
             Appearance.Reload();
             Features.Reload();
+            Exports.Reload();
             Window.ReloadSettings();
             numberVersion++;
             backupMessage = $"讀取完成：新增 {result.Added} 筆，略過 {result.Skipped} 筆重複";

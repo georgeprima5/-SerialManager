@@ -3,42 +3,58 @@ using ClosedXML.Excel;
 namespace SerialManager.Data;
 
 /// <summary>
-/// 匯出要包含哪些欄位（管理頁關掉的欄位不匯出）。
+/// 匯出可以選的欄位。列舉的順序就是預設的欄位順序。
 /// </summary>
-public record ExportColumns(bool PrizeLevel, bool AcquiredAt, bool Give, bool Note);
+public enum ExportField { Code, ItemName, PrizeLevel, AcquiredAt, ExpiresOn, Status, RedeemedAt, GivenTo, Note }
 
 /// <summary>
 /// 批次匯出：把勾選的序號轉成表格，再輸出成 Excel 檔或 Tab 分隔的文字（貼到 Excel 會自動分欄）。
 /// </summary>
 public static class SerialExporter
 {
-    /// <summary>
-    /// 第一列是標題，之後每筆序號一列。所有值都是文字，序號才不會被 Excel 當成數字（例如前面的 0 不見）。
-    /// </summary>
-    public static List<string[]> BuildTable(IEnumerable<SerialCode> items, ExportColumns columns, DateTime today)
+    public static string FieldName(ExportField field) => field switch
     {
-        var header = new List<string> { "序號", "內容" };
-        if (columns.PrizeLevel) header.Add("獎項等級");
-        if (columns.AcquiredAt) header.Add("取得時間");
-        header.AddRange(["效期", "狀態", "兌換時間"]);
-        if (columns.Give) header.Add("送給誰");
-        if (columns.Note) header.Add("備註");
+        ExportField.Code => "序號",
+        ExportField.ItemName => "內容",
+        ExportField.PrizeLevel => "獎項等級",
+        ExportField.AcquiredAt => "取得時間",
+        ExportField.ExpiresOn => "效期",
+        ExportField.Status => "狀態",
+        ExportField.RedeemedAt => "兌換時間",
+        ExportField.GivenTo => "送給誰",
+        _ => "備註",
+    };
 
-        var table = new List<string[]> { header.ToArray() };
+    /// <summary>
+    /// 依指定的欄位與順序產生表格；includeHeader 為 true 時第一列是標題。
+    /// 所有值都是文字，序號才不會被 Excel 當成數字（例如前面的 0 不見）。
+    /// </summary>
+    public static List<string[]> BuildTable(IEnumerable<SerialCode> items, IReadOnlyList<ExportField> fields, DateTime today, bool includeHeader = true)
+    {
+        var table = new List<string[]>();
+        if (includeHeader)
+        {
+            table.Add(fields.Select(FieldName).ToArray());
+        }
         foreach (var item in items)
         {
-            var row = new List<string> { item.Code, item.ItemName };
-            if (columns.PrizeLevel) row.Add(item.PrizeLevel ?? "");
-            if (columns.AcquiredAt) row.Add(item.AcquiredAt?.ToString("yyyy/MM/dd HH:mm:ss") ?? "");
-            row.Add(item.ExpiresOn.ToString("yyyy/MM/dd"));
-            row.Add(StatusText(item.GetDisplayStatus(today)));
-            row.Add(item.RedeemedAt?.ToString("yyyy/MM/dd HH:mm:ss") ?? "");
-            if (columns.Give) row.Add(item.GivenTo ?? "");
-            if (columns.Note) row.Add(item.Note ?? "");
-            table.Add(row.ToArray());
+            table.Add(fields.Select(field => FieldValue(item, field, today)).ToArray());
         }
         return table;
     }
+
+    private static string FieldValue(SerialCode item, ExportField field, DateTime today) => field switch
+    {
+        ExportField.Code => item.Code,
+        ExportField.ItemName => item.ItemName,
+        ExportField.PrizeLevel => item.PrizeLevel ?? "",
+        ExportField.AcquiredAt => item.AcquiredAt?.ToString("yyyy/MM/dd HH:mm:ss") ?? "",
+        ExportField.ExpiresOn => item.ExpiresOn.ToString("yyyy/MM/dd"),
+        ExportField.Status => StatusText(item.GetDisplayStatus(today)),
+        ExportField.RedeemedAt => item.RedeemedAt?.ToString("yyyy/MM/dd HH:mm:ss") ?? "",
+        ExportField.GivenTo => item.GivenTo ?? "",
+        _ => item.Note ?? "",
+    };
 
     /// <summary>
     /// 轉成 Tab 分隔文字。值裡的 Tab、換行換成空白，貼上時才不會跑欄。

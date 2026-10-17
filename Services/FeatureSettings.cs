@@ -57,6 +57,16 @@ public class FeatureSettings
     public void SetAcquiredAt(bool value) => SetFlag(AcquiredAtKey, value);
     public void SetNote(bool value) => SetFlag(NoteKey, value);
 
+    /// <summary>匯出欄位是否可用：欄位開關關掉的欄位不顯示在匯出設定裡，也不匯出。</summary>
+    public bool IsExportFieldVisible(ExportField field) => field switch
+    {
+        ExportField.PrizeLevel => PrizeLevelVisible,
+        ExportField.AcquiredAt => AcquiredAtVisible,
+        ExportField.GivenTo => GiveEnabled,
+        ExportField.Note => NoteVisible,
+        _ => true,
+    };
+
     /// <summary>快到期天數（超出範圍會自動調整到範圍內）。</summary>
     public void SetExpiringDays(int days)
     {
